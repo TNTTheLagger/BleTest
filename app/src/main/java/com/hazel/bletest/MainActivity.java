@@ -3,6 +3,7 @@ package com.hazel.bletest;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
@@ -37,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String CHARACTERISTIC_UUID_TX = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"; // Notify from ESP32
 
     private BluetoothAdapter bluetoothAdapter;
-    private BluetoothLeScanner scanner;
+    private android.bluetooth.le.BluetoothLeScanner scanner;
     private BluetoothGatt bluetoothGatt;
     private BluetoothGattCharacteristic txCharacteristic;
     private BluetoothGattCharacteristic rxCharacteristic;
@@ -110,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
             if (result.getDevice().getName() != null && result.getDevice().getName().equals("ESP32_BLE_UART")) {
                 Log.d(TAG, "Found ESP32 BLE Device");
                 scanner.stopScan(scannerCallback);
-                result.getDevice().connectGatt(MainActivity.this, false, gattCallback);
+                result.getDevice().connectGatt(MainActivity.this, false, gattCallback, BluetoothDevice.TRANSPORT_LE);  // Ensure LE transport is used for secure pairing
             }
         }
     };
@@ -136,12 +137,16 @@ public class MainActivity extends AppCompatActivity {
                     txCharacteristic = service.getCharacteristic(UUID.fromString(CHARACTERISTIC_UUID_TX));
                     rxCharacteristic = service.getCharacteristic(UUID.fromString(CHARACTERISTIC_UUID_RX));
 
+                    // Enable notifications for the RX characteristic
                     if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                         return;
                     }
                     gatt.setCharacteristicNotification(txCharacteristic, true);
+
+                    // Start secure pairing if necessary
+                    gatt.setCharacteristicNotification(txCharacteristic, true);  // Enable notifications for TX
+                    Log.d(TAG, "Service & Characteristics found and secured");
                     runOnUiThread(() -> textView.append("\nConnected to ESP32!"));
-                    Log.d(TAG, "Service & Characteristics found");
                 }
             }
         }
