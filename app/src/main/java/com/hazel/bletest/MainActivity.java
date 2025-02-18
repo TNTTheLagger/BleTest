@@ -45,47 +45,25 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver bondStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // Check if BLUETOOTH_CONNECT permission is granted
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
+                return;
+            }
+
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return;
-                }
                 if (device == null || device.getName() == null) {
                     return;
                 }
                 int bondState = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR);
                 int previousBondState = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR);
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return;
-                }
                 Log.d("BondStateReceiver", "Device: " + device.getName() +
                         " bond state changed: " + previousBondState + " -> " + bondState);
 
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return;
-                }
                 if (device.getName().equals(TARGET_DEVICE_NAME)) {
                     if (bondState == BluetoothDevice.BOND_BONDED) {
                         Toast.makeText(MainActivity.this, "Bonded with device", Toast.LENGTH_SHORT).show();
@@ -104,6 +82,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Request BLUETOOTH_CONNECT permission if not already granted
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
+        }
 
         // Register the bond state receiver
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
@@ -133,9 +118,9 @@ public class MainActivity extends AppCompatActivity {
         ScanCallback scanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult result) {
-                if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+                // Ensure BLUETOOTH_CONNECT permission is available
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
                         != PackageManager.PERMISSION_GRANTED) {
-                    // Request BLUETOOTH_CONNECT permission
                     ActivityCompat.requestPermissions(MainActivity.this,
                             new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
                     return;
@@ -169,7 +154,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void connectToDevice(BluetoothDevice device) {
-        if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+        // Ensure BLUETOOTH_CONNECT permission is available
+        if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(MainActivity.this,
                     new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
@@ -183,14 +169,10 @@ public class MainActivity extends AppCompatActivity {
                     isConnected = true;
                     runOnUiThread(() -> Toast.makeText(MainActivity.this, "Connected to device", Toast.LENGTH_SHORT).show());
                     // Discover services once connected.
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                        // TODO: Consider calling
-                        //    ActivityCompat#requestPermissions
-                        // here to request the missing permissions, and then overriding
-                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                        //                                          int[] grantResults)
-                        // to handle the case where the user grants the permission. See the documentation
-                        // for ActivityCompat#requestPermissions for more details.
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(MainActivity.this,
+                                new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
                         return;
                     }
                     gatt.discoverServices();
@@ -236,8 +218,10 @@ public class MainActivity extends AppCompatActivity {
     private void writeToCharacteristic(String data) {
         if (isConnected && targetCharacteristic != null) {
             targetCharacteristic.setValue(data);
-            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
                     != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
                 return;
             }
             bluetoothGatt.writeCharacteristic(targetCharacteristic);
@@ -246,8 +230,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void readFromCharacteristic() {
         if (isConnected && targetCharacteristic != null) {
-            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
                     != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
                 return;
             }
             bluetoothGatt.readCharacteristic(targetCharacteristic);
@@ -258,8 +244,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         if (bluetoothGatt != null) {
-            if (ContextCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT)
                     != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(MainActivity.this,
+                        new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 2);
                 return;
             }
             bluetoothGatt.close();
@@ -272,5 +260,16 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         // Unregister the bond state receiver
         unregisterReceiver(bondStateReceiver);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // Check if permission was granted
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Permission granted", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Permission denied, some functionality may be limited", Toast.LENGTH_SHORT).show();
+        }
     }
 }
