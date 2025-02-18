@@ -1,103 +1,168 @@
 package com.hazel.bletest;
 
+import android.Manifest;
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.Handler;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Set;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "BLE_TERMINAL";
+
+    // UUIDs for the Nordic UART Service (NUS)
+    private static final String SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+    private static final String CHARACTERISTIC_UUID_RX = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"; // Write to ESP32
+    private static final String CHARACTERISTIC_UUID_TX = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"; // Notify from ESP32
+
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothLeScanner scanner;
+    private BluetoothGatt bluetoothGatt;
+    private BluetoothGattCharacteristic txCharacteristic;
+    private BluetoothGattCharacteristic rxCharacteristic;
 
     private TextView textView;
-    private BluetoothAdapter bluetoothAdapter;
-    private BluetoothSocket bluetoothSocket;
-    private InputStream inputStream;
-    private Handler handler = new Handler();
-    private final UUID SERIAL_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"); // Standard UUID for serial devices
+    private EditText editText;
+    private Button sendButton;
 
+    private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
+
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         textView = findViewById(R.id.textView);
+        editText = findViewById(R.id.editText);
+        sendButton = findViewById(R.id.sendButton);
 
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (bluetoothAdapter == null) {
-            Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_LONG).show();
-            return;
-        }
+        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
+        bluetoothAdapter = bluetoothManager.getAdapter();
+        scanner = bluetoothAdapter.getBluetoothLeScanner();
 
-        connectToBluetoothDevice();
+        checkPermissions();
+
+        sendButton.setOnClickListener(v -> sendData(editText.getText().toString()));
     }
 
-    private void connectToBluetoothDevice() {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-        if (pairedDevices.isEmpty()) {
-            Toast.makeText(this, "No paired Bluetooth devices found", Toast.LENGTH_LONG).show();
-            return;
-        }
+    private void checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 
-        BluetoothDevice device = pairedDevices.iterator().next(); // Get the first paired device (modify to choose a specific one)
-
-        try {
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(SERIAL_UUID);
-            bluetoothSocket.connect();
-            inputStream = bluetoothSocket.getInputStream();
-
-            new Thread(this::readBluetoothData).start(); // Start reading data in a separate thread
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, "Connection failed", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void readBluetoothData() {
-        byte[] buffer = new byte[1024];
-        int bytes;
-
-        while (true) {
-            try {
-                bytes = inputStream.read(buffer);
-                String receivedData = new String(buffer, 0, bytes);
-
-                handler.post(() -> textView.append(receivedData + "\n")); // Update UI
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                break;
-            }
+            ActivityCompat.requestPermissions(this, new String[]{
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+            }, REQUEST_BLUETOOTH_PERMISSIONS);
+        } else {
+            startScan();
         }
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        try {
-            if (inputStream != null) inputStream.close();
-            if (bluetoothSocket != null) bluetoothSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_BLUETOOTH_PERMISSIONS) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startScan();
+            } else {
+                Toast.makeText(this, "Bluetooth permissions denied", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void startScan() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        scanner.startScan(scannerCallback);
+    }
+
+    private final ScanCallback scannerCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            if (result.getDevice().getName() != null && result.getDevice().getName().equals("ESP32_BLE_UART")) {
+                Log.d(TAG, "Found ESP32 BLE Device");
+                scanner.stopScan(scannerCallback);
+                result.getDevice().connectGatt(MainActivity.this, false, gattCallback);
+            }
+        }
+    };
+
+    private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            if (newState == BluetoothGatt.STATE_CONNECTED) {
+                Log.d(TAG, "Connected to ESP32 BLE");
+                bluetoothGatt = gatt;
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    return;
+                }
+                gatt.discoverServices();
+            }
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                BluetoothGattService service = gatt.getService(UUID.fromString(SERVICE_UUID));
+                if (service != null) {
+                    txCharacteristic = service.getCharacteristic(UUID.fromString(CHARACTERISTIC_UUID_TX));
+                    rxCharacteristic = service.getCharacteristic(UUID.fromString(CHARACTERISTIC_UUID_RX));
+
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+                    gatt.setCharacteristicNotification(txCharacteristic, true);
+                    runOnUiThread(() -> textView.append("\nConnected to ESP32!"));
+                    Log.d(TAG, "Service & Characteristics found");
+                }
+            }
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            if (characteristic.getUuid().toString().equals(CHARACTERISTIC_UUID_TX)) {
+                final String receivedData = new String(characteristic.getValue(), StandardCharsets.UTF_8);
+                runOnUiThread(() -> textView.append("\nESP32: " + receivedData));
+            }
+        }
+    };
+
+    private void sendData(String data) {
+        if (bluetoothGatt != null && rxCharacteristic != null) {
+            rxCharacteristic.setValue(data.getBytes(StandardCharsets.UTF_8));
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
+            bluetoothGatt.writeCharacteristic(rxCharacteristic);
+            Log.d(TAG, "Sent: " + data);
         }
     }
 }
