@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
         batteryProgress = findViewById(R.id.battery_progress);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         scanner = bluetoothAdapter.getBluetoothLeScanner();
+        startScanButton = findViewById(R.id.start_scan_button);
 
         if (checkPermissions()) {
             startScan();
@@ -92,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("MissingPermission")
     private void startScan() {
         if (checkPermissions()) {
+            startScanButton.setEnabled(false); // Disable the button once scan starts
             scanner.startScan(new ScanCallback() {
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
