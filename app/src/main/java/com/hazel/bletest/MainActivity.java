@@ -39,7 +39,6 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar batteryProgress;
     private Button startScanButton;
 
-
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,27 +50,37 @@ public class MainActivity extends AppCompatActivity {
         scanner = bluetoothAdapter.getBluetoothLeScanner();
         startScanButton = findViewById(R.id.start_scan_button);
 
+        Log.d(TAG, "onCreate: Initializing BLE components");
+
         if (checkPermissions()) {
+            Log.d(TAG, "onCreate: Permissions granted, starting scan");
             startScan();
         } else {
+            Log.d(TAG, "onCreate: Permissions not granted, requesting permissions");
             requestPermissions();
         }
 
-        startScanButton.setOnClickListener(v -> startScan());
+        startScanButton.setOnClickListener(v -> {
+            Log.d(TAG, "startScanButton clicked");
+            startScan();
+        });
     }
 
     private boolean checkPermissions() {
-        while (true) {
-            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
-                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
-                return true;
-            } else {
-                requestPermissions();
-            }
+        Log.d(TAG, "checkPermissions: Checking if permissions are granted");
+        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "checkPermissions: Permissions granted");
+            return true;
+        } else {
+            Log.d(TAG, "checkPermissions: Permissions not granted");
+            requestPermissions();
+            return false;
         }
     }
 
     private void requestPermissions() {
+        Log.d(TAG, "requestPermissions: Requesting Bluetooth permissions");
         ActivityCompat.requestPermissions(this, new String[]{
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT
@@ -81,32 +90,47 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        Log.d(TAG, "onRequestPermissionsResult: Permissions result received");
         if (requestCode == REQUEST_BLUETOOTH_PERMISSIONS) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "onRequestPermissionsResult: Permissions granted, starting scan");
                 startScan();
             } else {
-                Log.e(TAG, "Bluetooth permissions denied");
+                Log.e(TAG, "onRequestPermissionsResult: Bluetooth permissions denied");
             }
         }
     }
 
     @SuppressLint("MissingPermission")
     private void startScan() {
+        Log.d(TAG, "startScan: Starting Bluetooth scan");
         if (checkPermissions()) {
             startScanButton.setEnabled(false); // Disable the button once scan starts
             scanner.startScan(new ScanCallback() {
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
+                    Log.d(TAG, "onScanResult: Scan result received, processing...");
                     BluetoothDevice device = result.getDevice();
+                    Log.d(TAG, "onScanResult: Found device - " + device.getName() + " with address " + device.getAddress());
                     if (DEVICE_NAME.equals(device.getName())) {
-                        Log.d(TAG, "Found device: " + device.getName());
+                        Log.d(TAG, "onScanResult: Found target device, stopping scan");
                         scanner.stopScan(this);
                         if (checkPermissions()) {
+                            Log.d(TAG, "onScanResult: Connecting to GATT server for device " + device.getName());
                             device.connectGatt(MainActivity.this, false, gattCallback);
                         }
+                    } else {
+                        Log.d(TAG, "onScanResult: Device is not the target, ignoring");
                     }
                 }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    Log.e(TAG, "onScanFailed: Scan failed with error code " + errorCode);
+                }
             });
+        } else {
+            Log.e(TAG, "startScan: Permissions not granted, cannot start scan");
         }
     }
 
@@ -114,36 +138,49 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            Log.d(TAG, "onConnectionStateChange: Connection state changed. Status: " + status + ", New State: " + newState);
             if (newState == BluetoothGatt.STATE_CONNECTED) {
-                Log.d(TAG, "Connected to device");
+                Log.d(TAG, "onConnectionStateChange: Connected to device, discovering services");
                 if (checkPermissions()) {
                     gatt.discoverServices();
                 }
+            } else {
+                Log.e(TAG, "onConnectionStateChange: Connection failed or disconnected. Status: " + status);
             }
         }
 
         @SuppressLint("MissingPermission")
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onServicesDiscovered: Services discovered. Status: " + status);
             if (checkPermissions()) {
                 BluetoothGattService service = gatt.getService(BATTERY_SERVICE_UUID);
                 if (service != null) {
+                    Log.d(TAG, "onServicesDiscovered: Battery service found, reading battery level");
                     BluetoothGattCharacteristic characteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
                     if (characteristic != null) {
                         gatt.readCharacteristic(characteristic);
+                    } else {
+                        Log.e(TAG, "onServicesDiscovered: Battery level characteristic not found");
                     }
+                } else {
+                    Log.e(TAG, "onServicesDiscovered: Battery service not found");
                 }
             }
         }
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            Log.d(TAG, "onCharacteristicRead: Characteristic read. Status: " + status + ", UUID: " + characteristic.getUuid());
             if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
                 int batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                Log.d(TAG, "onCharacteristicRead: Battery level: " + batteryLevel + "%");
                 runOnUiThread(() -> {
                     batteryLevelText.setText("Battery: " + batteryLevel + "%");
                     batteryProgress.setProgress(batteryLevel);
                 });
+            } else {
+                Log.e(TAG, "onCharacteristicRead: Unexpected characteristic UUID");
             }
         }
     };
