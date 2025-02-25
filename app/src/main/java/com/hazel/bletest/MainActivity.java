@@ -14,12 +14,14 @@ import android.bluetooth.le.ScanResult;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import android.view.View;
 
 import java.util.UUID;
 
@@ -35,6 +37,8 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGatt bluetoothGatt;
     private TextView batteryLevelText;
     private ProgressBar batteryProgress;
+    private Button startScanButton;
+
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -51,6 +55,8 @@ public class MainActivity extends AppCompatActivity {
         } else {
             requestPermissions();
         }
+
+        startScanButton.setOnClickListener(v -> startScan());
     }
 
     private boolean checkPermissions() {
