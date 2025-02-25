@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace = "com.hazel.bletest"
-    compileSdk = 35
+    compileSdk = 33
 
     defaultConfig {
         applicationId = "com.hazel.bletest"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 33
         versionCode = 1
         versionName = "1.0"
 
