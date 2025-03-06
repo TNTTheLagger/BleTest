@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String DEVICE_NAME = "ESP32";
     private static final UUID BATTERY_SERVICE_UUID = UUID.fromString("0000180F-0000-1000-8000-00805F9B34FB");
     private static final UUID BATTERY_LEVEL_UUID = UUID.fromString("00002A19-0000-1000-8000-00805F9B34FB");
-    private static final UUID BUTTON_PRESSED_UUID = UUID.fromString("12345678-1234-1234-1234-1234567890AB");  // Your custom UUID
+    private static final UUID BUTTON_PRESSED_UUID = UUID.fromString("12345678-1234-1234-1234-1234567890AB");
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
 
     private BluetoothAdapter bluetoothAdapter;
@@ -63,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
         batteryLevelText = findViewById(R.id.battery_level);
         batteryProgress = findViewById(R.id.battery_progress);
         startScanButton = findViewById(R.id.start_scan_button);
-        sendDataButton = findViewById(R.id.send_data_button);  // New button to send data
+        sendDataButton = findViewById(R.id.send_data_button);
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         scanner = bluetoothAdapter.getBluetoothLeScanner();
@@ -78,7 +78,6 @@ public class MainActivity extends AppCompatActivity {
 
         startScanButton.setOnClickListener(v -> startScan());
 
-        // Set up "Send Data" button listener
         sendDataButton.setOnClickListener(v -> sendDataToDevice("Hello, ESP32!"));
     }
 
@@ -91,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void requestPermissions() {
         Log.d(TAG, "requestPermissions: Requesting Bluetooth permissions");
-        ActivityCompat.requestPermissions(this, new String[]{
+        ActivityCompat.requestPermissions(this, new String[] {
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT
         }, REQUEST_BLUETOOTH_PERMISSIONS);
@@ -171,9 +170,6 @@ public class MainActivity extends AppCompatActivity {
             if (service != null) {
                 BluetoothGattCharacteristic batteryLevelCharacteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
                 if (batteryLevelCharacteristic != null) {
-                    // Read the battery level once when the service is discovered
-                    gatt.readCharacteristic(batteryLevelCharacteristic);
-
                     // Enable notifications for the battery level characteristic
                     gatt.setCharacteristicNotification(batteryLevelCharacteristic, true);
 
@@ -189,25 +185,10 @@ public class MainActivity extends AppCompatActivity {
 
         @SuppressLint("MissingPermission")
         @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS && BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
-                int batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                Log.d(TAG, "Battery Level: " + batteryLevel + "%");
-
-                runOnUiThread(() -> {
-                    batteryLevelText.setText("Battery Level: " + batteryLevel + "%");
-                    batteryProgress.setProgress(batteryLevel);
-                    setLifecycleState(BLELifecycleState.Connected);
-                });
-            }
-        }
-
-        @SuppressLint("MissingPermission")
-        @Override
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
                 int batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                Log.d(TAG, "Battery Level (Updated): " + batteryLevel + "%");
+                Log.d(TAG, "Battery Level: " + batteryLevel + "%");
 
                 runOnUiThread(() -> {
                     batteryLevelText.setText("Battery Level: " + batteryLevel + "%");
@@ -217,7 +198,6 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-
     // Method to send data to the device (write to a custom characteristic)
     @SuppressLint("MissingPermission")
     private void sendDataToDevice(String data) {
@@ -226,21 +206,11 @@ public class MainActivity extends AppCompatActivity {
             if (service != null) {
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(BUTTON_PRESSED_UUID);
                 if (characteristic != null) {
-                    characteristic.setValue(data.getBytes());
+                    characteristic.setValue(data);
                     bluetoothGatt.writeCharacteristic(characteristic);
-                    Log.d(TAG, "Sending data: " + data);
+                    Log.d(TAG, "Data sent to device: " + data);
                 }
             }
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    @Override
-    protected void onDestroy() {
-        if (bluetoothGatt != null) {
-            bluetoothGatt.close();
-            bluetoothGatt = null;
-        }
-        super.onDestroy();
     }
 }
