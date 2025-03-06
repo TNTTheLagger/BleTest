@@ -7,6 +7,7 @@ import android.bluetooth.le.*;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.ParcelUuid;
 import android.util.Log;
 import android.widget.Button;
@@ -156,23 +157,50 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        private HandlerThread handlerThread;
+        private Handler handler;
+        private boolean isRunning = true;
+
+        private void stopBatteryLevelCheck() {
+            isRunning = false;
+            if (handlerThread != null) {
+                handlerThread.quitSafely();
+                handlerThread = null;
+            }
+        }
+
         @SuppressLint("MissingPermission")
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             Log.d(TAG, "onServicesDiscovered: Status " + status);
             BluetoothGattService service = gatt.getService(BATTERY_SERVICE_UUID);
-            if (service != null) {
-                BluetoothGattCharacteristic characteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
-                if (characteristic != null) {
-                    Log.d(TAG, "Reading battery level...");
-                    gatt.readCharacteristic(characteristic);
-                } else {
-                    Log.e(TAG, "onServicesDiscovered: Battery characteristic not found");
+            handlerThread = new HandlerThread("BatteryCheckThread");
+            handlerThread.start();
+            handler = new Handler(handlerThread.getLooper());
+
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (service != null) {
+                        BluetoothGattCharacteristic characteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
+                        if (characteristic != null) {
+                            Log.d(TAG, "Reading battery level...");
+                            gatt.readCharacteristic(characteristic);
+                        } else {
+                            Log.e(TAG, "onServicesDiscovered: Battery characteristic not found");
+                        }
+
+                        // Schedule next execution after 1 second if service is still available
+                        if (isRunning) {
+                            handler.postDelayed(this, 1000);
+                        }
+                    } else {
+                        Log.e(TAG, "onServicesDiscovered: Battery service not found");
+                        gatt.disconnect();
+                        stopBatteryLevelCheck();
+                    }
                 }
-            } else {
-                Log.e(TAG, "onServicesDiscovered: Battery service not found");
-                gatt.disconnect();
-            }
+            });
         }
 
         @SuppressLint("MissingPermission")
@@ -191,6 +219,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    @SuppressLint("MissingPermission")
     @Override
     protected void onDestroy() {
         if (bluetoothGatt != null) {
