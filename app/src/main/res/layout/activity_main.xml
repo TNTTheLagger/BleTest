@@ -4,28 +4,32 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:padding="20dp">
-
-    <Button
-        android:id="@+id/scanButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Scan & Connect" />
+    android:padding="16dp">
 
     <TextView
-        android:id="@+id/statusText"
+        android:id="@+id/battery_level"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Status: Idle"
-        android:textSize="18sp"
-        android:padding="10dp" />
-
-    <TextView
-        android:id="@+id/batteryText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Battery Level: --%"
-        android:textSize="22sp"
+        android:text="Battery: --%"
+        android:textSize="24sp"
         android:textStyle="bold"
-        android:padding="10dp" />
+        android:paddingBottom="16dp" />
+
+    <ProgressBar
+        android:id="@+id/battery_progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:max="100"
+        android:progress="50"
+        android:progressDrawable="@drawable/battery_progress" />
+
+    <!-- Start Scan Button -->
+    <Button
+        android:id="@+id/start_scan_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Start Scan"
+        android:layout_marginTop="20dp" />
+
 </LinearLayout>
