@@ -25,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String DEVICE_NAME = "ESP32";
     private static final UUID BATTERY_SERVICE_UUID = UUID.fromString("0000180F-0000-1000-8000-00805F9B34FB");
     private static final UUID BATTERY_LEVEL_UUID = UUID.fromString("00002A19-0000-1000-8000-00805F9B34FB");
+    private static final UUID BUTTON_PRESSED_UUID = UUID.fromString("12345678-1234-1234-1234-1234567890AB");  // Your custom UUID
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
 
     private BluetoothAdapter bluetoothAdapter;
@@ -33,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView batteryLevelText;
     private ProgressBar batteryProgress;
     private Button startScanButton;
+    private Button sendDataButton;
     private Handler handler = new Handler();
     private static final long SCAN_PERIOD = 10000;
     private boolean scanning;
@@ -61,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
         batteryLevelText = findViewById(R.id.battery_level);
         batteryProgress = findViewById(R.id.battery_progress);
         startScanButton = findViewById(R.id.start_scan_button);
+        sendDataButton = findViewById(R.id.send_data_button);  // New button to send data
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         scanner = bluetoothAdapter.getBluetoothLeScanner();
@@ -74,6 +77,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         startScanButton.setOnClickListener(v -> startScan());
+
+        // Set up "Send Data" button listener
+        sendDataButton.setOnClickListener(v -> sendDataToDevice("Hello, ESP32!"));
     }
 
     private boolean checkPermissions() {
@@ -157,50 +163,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        private HandlerThread handlerThread;
-        private Handler handler;
-        private boolean isRunning = true;
-
-        private void stopBatteryLevelCheck() {
-            isRunning = false;
-            if (handlerThread != null) {
-                handlerThread.quitSafely();
-                handlerThread = null;
-            }
-        }
-
         @SuppressLint("MissingPermission")
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             Log.d(TAG, "onServicesDiscovered: Status " + status);
             BluetoothGattService service = gatt.getService(BATTERY_SERVICE_UUID);
-            handlerThread = new HandlerThread("BatteryCheckThread");
-            handlerThread.start();
-            handler = new Handler(handlerThread.getLooper());
-
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    if (service != null) {
-                        BluetoothGattCharacteristic characteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
-                        if (characteristic != null) {
-                            Log.d(TAG, "Reading battery level...");
-                            gatt.readCharacteristic(characteristic);
-                        } else {
-                            Log.e(TAG, "onServicesDiscovered: Battery characteristic not found");
-                        }
-
-                        // Schedule next execution after 1 second if service is still available
-                        if (isRunning) {
-                            handler.postDelayed(this, 1000);
-                        }
-                    } else {
-                        Log.e(TAG, "onServicesDiscovered: Battery service not found");
-                        gatt.disconnect();
-                        stopBatteryLevelCheck();
-                    }
+            if (service != null) {
+                BluetoothGattCharacteristic batteryLevelCharacteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
+                if (batteryLevelCharacteristic != null) {
+                    gatt.readCharacteristic(batteryLevelCharacteristic);
                 }
-            });
+            }
         }
 
         @SuppressLint("MissingPermission")
@@ -218,6 +191,22 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+
+    // Method to send data to the device (write to a custom characteristic)
+    @SuppressLint("MissingPermission")
+    private void sendDataToDevice(String data) {
+        if (bluetoothGatt != null) {
+            BluetoothGattService service = bluetoothGatt.getService(BATTERY_SERVICE_UUID);
+            if (service != null) {
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(BUTTON_PRESSED_UUID);
+                if (characteristic != null) {
+                    characteristic.setValue(data.getBytes());
+                    bluetoothGatt.writeCharacteristic(characteristic);
+                    Log.d(TAG, "Sending data: " + data);
+                }
+            }
+        }
+    }
 
     @SuppressLint("MissingPermission")
     @Override
