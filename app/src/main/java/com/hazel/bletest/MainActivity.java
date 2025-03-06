@@ -11,6 +11,7 @@ import android.os.HandlerThread;
 import android.os.ParcelUuid;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.annotation.Nullable;
@@ -64,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
         batteryProgress = findViewById(R.id.battery_progress);
         startScanButton = findViewById(R.id.start_scan_button);
         sendDataButton = findViewById(R.id.send_data_button);
+        EditText dataInput = findViewById(R.id.data_input);
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         scanner = bluetoothAdapter.getBluetoothLeScanner();
@@ -78,8 +80,12 @@ public class MainActivity extends AppCompatActivity {
 
         startScanButton.setOnClickListener(v -> startScan());
 
-        sendDataButton.setOnClickListener(v -> sendDataToDevice("Hello, ESP32!"));
+        sendDataButton.setOnClickListener(v -> {
+            String data = dataInput.getText().toString();  // Get the text from the EditText
+            sendDataToDevice(data);  // Send the data to the device
+        });
     }
+
 
     private boolean checkPermissions() {
         boolean hasPermissions = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&

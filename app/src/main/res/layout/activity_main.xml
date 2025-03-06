@@ -32,6 +32,15 @@
         android:text="Start Scan"
         android:layout_marginTop="20dp" />
 
+    <!-- EditText for input string -->
+    <EditText
+        android:id="@+id/data_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter data to send"
+        android:inputType="text"
+        android:layout_marginTop="20dp"/>
+
     <!-- Send Data Button -->
     <Button
         android:id="@+id/send_data_button"
