@@ -2,18 +2,8 @@ package com.hazel.bletest;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
-import android.bluetooth.BluetoothProfile;
-import android.bluetooth.le.BluetoothLeScanner;
-import android.bluetooth.le.ScanCallback;
-import android.bluetooth.le.ScanFilter;
-import android.bluetooth.le.ScanResult;
-import android.bluetooth.le.ScanSettings;
+import android.bluetooth.*;
+import android.bluetooth.le.*;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -32,7 +22,7 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "BLETest";
-    private static final String DEVICE_NAME = "ESP32 Battery";
+    private static final String DEVICE_NAME = "ESP32";
     private static final UUID BATTERY_SERVICE_UUID = UUID.fromString("0000180F-0000-1000-8000-00805F9B34FB");
     private static final UUID BATTERY_LEVEL_UUID = UUID.fromString("00002A19-0000-1000-8000-00805F9B34FB");
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 1;
@@ -43,7 +33,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView batteryLevelText;
     private ProgressBar batteryProgress;
     private Button startScanButton;
-
     private Handler handler = new Handler();
     private static final long SCAN_PERIOD = 10000;
     private boolean scanning;
@@ -61,7 +50,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void setLifecycleState(BLELifecycleState state) {
         lifecycleState = state;
-        Log.d(TAG, "Lifecycle State: " + state.name());
+        Log.d(TAG, "Lifecycle State changed to: " + state.name());
     }
 
     @Override
@@ -71,9 +60,12 @@ public class MainActivity extends AppCompatActivity {
 
         batteryLevelText = findViewById(R.id.battery_level);
         batteryProgress = findViewById(R.id.battery_progress);
+        startScanButton = findViewById(R.id.start_scan_button);
+
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         scanner = bluetoothAdapter.getBluetoothLeScanner();
-        startScanButton = findViewById(R.id.start_scan_button);
+
+        Log.d(TAG, "onCreate: Initializing Bluetooth scanner");
 
         if (checkPermissions()) {
             startScan();
@@ -85,11 +77,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean checkPermissions() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+        boolean hasPermissions = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+        Log.d(TAG, "checkPermissions: " + hasPermissions);
+        return hasPermissions;
     }
 
     private void requestPermissions() {
+        Log.d(TAG, "requestPermissions: Requesting Bluetooth permissions");
         ActivityCompat.requestPermissions(this, new String[]{
                 Manifest.permission.BLUETOOTH_SCAN,
                 Manifest.permission.BLUETOOTH_CONNECT
@@ -100,11 +95,9 @@ public class MainActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_BLUETOOTH_PERMISSIONS) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startScan();
-            } else {
-                Log.e(TAG, "Bluetooth permissions denied");
-            }
+            boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            Log.d(TAG, "onRequestPermissionsResult: Bluetooth permissions granted = " + granted);
+            if (granted) startScan();
         }
     }
 
@@ -136,21 +129,16 @@ public class MainActivity extends AppCompatActivity {
             .build();
 
     private ScanCallback leScanCallback = new ScanCallback() {
-        @Override
         @SuppressLint("MissingPermission")
+        @Override
         public void onScanResult(int callbackType, ScanResult result) {
             BluetoothDevice device = result.getDevice();
+            Log.d(TAG, "onScanResult: Found device " + device.getName() + " (" + device.getAddress() + ")");
             if (DEVICE_NAME.equals(device.getName())) {
                 stopScan();
                 setLifecycleState(BLELifecycleState.Connecting);
                 device.connectGatt(MainActivity.this, false, gattCallback);
             }
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            Log.e(TAG, "onScanFailed: Scan failed with error code " + errorCode);
-            stopScan();
         }
     };
 
@@ -158,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            Log.d(TAG, "onConnectionStateChange: Status " + status + ", New State " + newState);
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 setLifecycleState(BLELifecycleState.ConnectedDiscovering);
                 gatt.discoverServices();
@@ -170,28 +159,18 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onServicesDiscovered: Status " + status);
             BluetoothGattService service = gatt.getService(BATTERY_SERVICE_UUID);
             if (service != null) {
-                setLifecycleState(BLELifecycleState.Connected);
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
                 if (characteristic != null) {
                     gatt.readCharacteristic(characteristic);
                 } else {
-                    Log.e(TAG, "onServicesDiscovered: Battery level characteristic not found");
+                    Log.e(TAG, "onServicesDiscovered: Battery characteristic not found");
                 }
             } else {
+                Log.e(TAG, "onServicesDiscovered: Battery service not found");
                 gatt.disconnect();
-            }
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
-                int batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
-                runOnUiThread(() -> {
-                    batteryLevelText.setText("Battery: " + batteryLevel + "%");
-                    batteryProgress.setProgress(batteryLevel);
-                });
             }
         }
     };
