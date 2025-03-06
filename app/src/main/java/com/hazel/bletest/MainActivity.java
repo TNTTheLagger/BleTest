@@ -171,7 +171,18 @@ public class MainActivity extends AppCompatActivity {
             if (service != null) {
                 BluetoothGattCharacteristic batteryLevelCharacteristic = service.getCharacteristic(BATTERY_LEVEL_UUID);
                 if (batteryLevelCharacteristic != null) {
+                    // Read the battery level once when the service is discovered
                     gatt.readCharacteristic(batteryLevelCharacteristic);
+
+                    // Enable notifications for the battery level characteristic
+                    gatt.setCharacteristicNotification(batteryLevelCharacteristic, true);
+
+                    BluetoothGattDescriptor descriptor = batteryLevelCharacteristic.getDescriptor(
+                            UUID.fromString("00002902-0000-1000-8000-00805F9B34FB"));
+                    if (descriptor != null) {
+                        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                        gatt.writeDescriptor(descriptor);
+                    }
                 }
             }
         }
@@ -190,7 +201,22 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         }
+
+        @SuppressLint("MissingPermission")
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            if (BATTERY_LEVEL_UUID.equals(characteristic.getUuid())) {
+                int batteryLevel = characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0);
+                Log.d(TAG, "Battery Level (Updated): " + batteryLevel + "%");
+
+                runOnUiThread(() -> {
+                    batteryLevelText.setText("Battery Level: " + batteryLevel + "%");
+                    batteryProgress.setProgress(batteryLevel);
+                });
+            }
+        }
     };
+
 
     // Method to send data to the device (write to a custom characteristic)
     @SuppressLint("MissingPermission")
